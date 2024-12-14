@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func WriteString(w io.Writer, command string) (int, error) {
+func writeString(w io.Writer, command string) (int, error) {
 	return w.Write([]byte(command))
 }
 func FormAtcsim(command []byte) string {
@@ -58,7 +58,7 @@ func Csim(transport io.ReadWriteCloser, command []byte) (response []byte, err er
 
 	c := FormAtcsim(command)
 
-	_, err = WriteString(transport, c)
+	_, err = writeString(transport, c)
 	if err != nil {
 		return
 	}
