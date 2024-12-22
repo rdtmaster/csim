@@ -7,13 +7,22 @@ import (
 	"io"
 	"strings"
 )
-
+var (
+	Keenetic bool = false
+	Keen_interface string = ""
+)
 func writeString(w io.Writer, command string) (int, error) {
 	return w.Write([]byte(command))
 }
 func FormAtcsim(command []byte) string {
 	cmd := strings.ToUpper(hex.EncodeToString(command))
-	return fmt.Sprintf("AT+CSIM=%d,\"%s\"\r\n", len(cmd), cmd)
+	var s string
+	if !Keenetic{
+	s = fmt.Sprintf("AT+CSIM=%d,\"%s\"\r\n", len(cmd), cmd)
+	} else {
+		s = fmt.Sprintf("interface %s tty send AT+CSIM=%d,\"%s\"\r\n", Keen_interface, len(cmd), cmd)
+	}
+	return s
 }
 func ExpectATResp(expectee io.Reader, expected string) (r string, err error) {
 	r = ""
