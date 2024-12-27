@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	Keenetic       bool   = false
-	Keen_interface string = ""
+	Keenetic       bool          = false
+	Keen_interface string        = ""
+	Timeout        time.Duration = 5 * time.Second
 )
 
 func writeString(w io.Writer, command string) (int, error) {
@@ -27,28 +28,30 @@ func FormAtcsim(command []byte) string {
 	}
 	return s
 }
+
+func rFunc(r io.Reader, ch chan []byte) {
+
+	for {
+		buff := make([]byte, 540)
+		n, err := r.Read(buff)
+		if err != nil || n <= 0 {
+			break
+		}
+		ch <- buff[:n]
+	}
+}
 func ExpectATResp(expectee io.Reader, expected string) (r string, err error) {
 	r = ""
 	res := ""
 	err = nil
 	ch := make(chan []byte)
-	t := time.After(5 * time.Second)
-	go func() {
-		buff := make([]byte, 530)
-		for {
-			n, err := expectee.Read(buff)
-			if err != nil || n <= 0 {
-				break
-			}
-
-			ch <- buff[:n]
-
-		}
-	}()
+	t := time.After(Timeout)
+	go rFunc(expectee, ch)
 acceptLoop:
 	for {
 		select {
 		case bs := <-ch:
+
 			res += string(bs)
 			if strings.Contains(res, "OK\r\n") || strings.Contains(res, "ERROR\r\n") {
 				break acceptLoop
