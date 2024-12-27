@@ -6,19 +6,22 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
+
 var (
-	Keenetic bool = false
+	Keenetic       bool   = false
 	Keen_interface string = ""
 )
+
 func writeString(w io.Writer, command string) (int, error) {
 	return w.Write([]byte(command))
 }
 func FormAtcsim(command []byte) string {
 	cmd := strings.ToUpper(hex.EncodeToString(command))
 	var s string
-	if !Keenetic{
-	s = fmt.Sprintf("AT+CSIM=%d,\"%s\"\r\n", len(cmd), cmd)
+	if !Keenetic {
+		s = fmt.Sprintf("AT+CSIM=%d,\"%s\"\r\n", len(cmd), cmd)
 	} else {
 		s = fmt.Sprintf("interface %s tty send AT+CSIM=%d,\"%s\"\r\n", Keen_interface, len(cmd), cmd)
 	}
@@ -27,20 +30,36 @@ func FormAtcsim(command []byte) string {
 func ExpectATResp(expectee io.Reader, expected string) (r string, err error) {
 	r = ""
 	res := ""
+	err = nil
+	ch := make(chan []byte)
+	t := time.After(5 * time.Second)
+	go func() {
+		buff := make([]byte, 530)
+		for {
+			n, err := expectee.Read(buff)
+			if err != nil || n <= 0 {
+				break
+			}
 
-	buff := make([]byte, 530)
+			ch <- buff[:n]
 
+		}
+	}()
+acceptLoop:
 	for {
-		n, err := expectee.Read(buff)
-		if err != nil {
-			break
+		select {
+		case bs := <-ch:
+			res += string(bs)
+			if strings.Contains(res, "OK\r\n") || strings.Contains(res, "ERROR\r\n") {
+				break acceptLoop
+			}
+		case <-t:
+			err = errors.New("read timeout")
+			break acceptLoop
 		}
-
-		res += string(buff[:n])
-
-		if n == 0 || strings.Contains(res, "OK\r\n") || strings.Contains(res, "ERROR\r\n") {
-			break
-		}
+	}
+	if err != nil {
+		return "", err
 	}
 	respIndex := strings.Index(res, expected)
 	if respIndex >= 0 {
@@ -68,12 +87,15 @@ func Csim(transport io.ReadWriteCloser, command []byte) (response []byte, err er
 	c := FormAtcsim(command)
 
 	_, err = writeString(transport, c)
+
 	if err != nil {
 		return
 	}
 
 	r, err := ExpectATResp(transport, "+CSIM: ")
-
+	if err != nil {
+		return
+	}
 	response, err = hex.DecodeString(ParseCsimResp(r))
 
 	return
